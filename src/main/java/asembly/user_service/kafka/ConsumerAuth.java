@@ -11,6 +11,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.messaging.handler.annotation.Payload;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -24,6 +26,9 @@ public class ConsumerAuth {
     private UserRepository userRepository;
 
     @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
     private KafkaTemplate<String, Object> kafkaTemplate;
 
     /**
@@ -35,11 +40,11 @@ public class ConsumerAuth {
         try {
             var optUser = userRepository.findByUsername(data.username());
 
-            AuthStatus status = null;
+            AuthStatus status;
 
             if (optUser.isEmpty()) {
                 status = AuthStatus.USER_NOT_FOUND;
-            } else if(!optUser.get().getPassword().equals(data.password())) {
+            } else if(!passwordEncoder.matches(data.password(), optUser.get().getPassword())) {
                 status = AuthStatus.INVALID_CREDENTIALS;
             } else {
                 status = AuthStatus.VALID;
@@ -47,7 +52,7 @@ public class ConsumerAuth {
 
             var user = optUser.get();
 
-            kafkaTemplate.send("signin-responses", new ValidResponse(
+            kafkaTemplate.send("auth-responses", new ValidResponse(
                     data.correlationId(),
                     new AuthResult(
                             status,
@@ -68,10 +73,10 @@ public class ConsumerAuth {
      * Сообщение доходит до слушателя SignUp(Consumer)
     */
     @KafkaListener(topics = "signup-requests", containerFactory = "authListener", groupId = "auth")
-    public void handlerSignUp(AuthRequest data){
+    public void handlerSignUp(@Payload AuthRequest data){
         try {
             var optUser = userRepository.findByUsername(data.username());
-            AuthStatus status = null;
+            AuthStatus status;
 
             if (optUser.isPresent()) {
                 status = AuthStatus.USER_FOUND;
@@ -79,15 +84,18 @@ public class ConsumerAuth {
                 status = AuthStatus.VALID;
             }
 
-            var user = optUser.get();
+            String encoded_pass = passwordEncoder.encode(data.password());
+
+            var user = userService.create(new UserCreateRequest(data.username(), encoded_pass));
+            log.info(user.getId());
 
             ValidResponse response = new ValidResponse(data.correlationId(), new AuthResult(
                     status,
                     user.getId(),
                     user.getUsername())
             );
-            userService.create(new UserCreateRequest(data.username(), data.password()));
-            kafkaTemplate.send("signup-responses", response);
+
+            kafkaTemplate.send("auth-responses", response);
         }catch (Exception e)
         {
             throw new IllegalStateException("Validation failed");

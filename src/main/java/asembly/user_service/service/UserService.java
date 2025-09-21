@@ -25,10 +25,8 @@ public class UserService {
     private final ProducerUser producerService;
 
     //USER CREATE IN SYSTEM
-    public void create(UserCreateRequest dto)
+    public User create(UserCreateRequest dto)
     {
-        userRepository.findByUsername(dto.username()).orElseThrow();
-
         var newUser = new User(
                 GeneratorId.generateShortUuid(),
                 dto.username(),
@@ -43,7 +41,7 @@ public class UserService {
                 newUser.getChats_id()
         );
 
-        userRepository.save(newUser);
+        return userRepository.save(newUser);
     }
 
     //USER UPDATE IN SYSTEM
