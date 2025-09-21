@@ -10,6 +10,9 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME}
   kafka:
     bootstrap-servers: localhost:9092
+  jwt:
+    secret:
+      auth_service: ${SPRING_JWT_SECRET}
 server:
   port: 8081
 eureka:

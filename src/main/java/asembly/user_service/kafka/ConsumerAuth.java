@@ -79,7 +79,7 @@ public class ConsumerAuth {
             AuthStatus status;
 
             if (optUser.isPresent()) {
-                status = AuthStatus.USER_FOUND;
+                status = AuthStatus.USER_ALREADY_EXIST;
             } else {
                 status = AuthStatus.VALID;
             }
