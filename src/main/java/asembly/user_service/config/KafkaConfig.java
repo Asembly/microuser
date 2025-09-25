@@ -28,12 +28,16 @@ public class KafkaConfig {
     public String bootstrapAddress;
 
     //CONSUMER CHAT
+    public ConsumerFactory<String, ChatEvent> chatFactory() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapAddress);
+        return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), new JsonDeserializer<>(ChatEvent.class));
+    }
     @Bean
-    ConcurrentKafkaListenerContainerFactory<String, ChatEvent>
-    chatListener(ConsumerFactory<String, ChatEvent> consumerFactory) {
+    ConcurrentKafkaListenerContainerFactory<String, ChatEvent> chatListener() {
         ConcurrentKafkaListenerContainerFactory<String, ChatEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(consumerFactory);
+        factory.setConsumerFactory(chatFactory());
         return factory;
     }
 

@@ -1,20 +1,18 @@
 package asembly.user_service.service;
 
-import asembly.dto.user.UserCreateRequest;
+import asembly.dto.user.UserChatsRequest;
 import asembly.dto.user.UserUpdateRequest;
 import asembly.event.user.UserEventType;
 import asembly.user_service.entity.User;
 import asembly.user_service.kafka.ProducerUser;
 import asembly.user_service.repository.UserRepository;
-import asembly.util.GeneratorId;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
 import java.util.HashSet;
-import java.util.List;
 
 @Slf4j
 @Service
@@ -24,38 +22,53 @@ public class UserService {
     private final UserRepository userRepository;
     private final ProducerUser producerService;
 
-    //USER CREATE IN SYSTEM
-    public User create(UserCreateRequest dto)
+    public ResponseEntity<?> leaveChat(String user_id, UserChatsRequest dto)
     {
-        var newUser = new User(
-                GeneratorId.generateShortUuid(),
-                dto.username(),
-                dto.password(),
-                List.of(),
-                LocalDate.now());
+        var user = userRepository.findById(user_id).orElseThrow();
+
+        if(dto.chats_id().isEmpty())
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Chats is empty");
+
+        var isRemoved = user.getChats_id().removeAll(dto.chats_id());
+
+        if(!isRemoved)
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Chats not found in user");
 
         producerService.sendEvent(
-                UserEventType.USER_CREATED,
-                newUser.getId(),
-                newUser.getUsername(),
-                newUser.getChats_id()
+                UserEventType.USER_LEAVE_CHAT,
+                user.getId(),
+                dto.chats_id()
         );
 
-        return userRepository.save(newUser);
+        return ResponseEntity.ok(userRepository.save(user));
     }
 
-    //USER UPDATE IN SYSTEM
+    public ResponseEntity<?> addChat(String user_id, UserChatsRequest dto)
+    {
+        var user = userRepository.findById(user_id).orElseThrow();
+
+        if(dto.chats_id().isEmpty())
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Chats is empty");
+
+        if(!new HashSet<>(user.getChats_id()).containsAll(dto.chats_id()))
+        {
+            user.getChats_id().addAll(dto.chats_id());
+        }else{
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Chats already exits in user");
+        }
+
+        producerService.sendEvent(
+                UserEventType.USER_ADD_CHAT,
+                user.getId(),
+                user.getChats_id()
+        );
+
+        return ResponseEntity.ok(userRepository.save(user));
+    }
+
     public ResponseEntity<User> update(String id, UserUpdateRequest dto)
     {
         var user = userRepository.findById(id).orElseThrow();
-        var chats_id = user.getChats_id();
-
-
-        if(!dto.chats_id().isEmpty())
-        {
-            if(new HashSet<>(chats_id).containsAll(dto.chats_id()))
-                return ResponseEntity.badRequest().build();
-        }
 
         if(!dto.username().isEmpty())
         {
@@ -68,33 +81,8 @@ public class UserService {
         if(!dto.password().isEmpty())
             user.setPassword(dto.password());
 
-        producerService.sendEvent(
-                UserEventType.USER_UPDATED,
-                user.getId(),
-                user.getUsername(),
-                user.getChats_id()
-        );
-
         userRepository.save(user);
 
         return ResponseEntity.ok(user);
     }
-
-    //USER DELETE IN SYSTEM
-    public ResponseEntity<User> delete(String id)
-    {
-        var user = userRepository.findById(id).orElseThrow();
-
-        producerService.sendEvent(
-                UserEventType.USER_DELETED,
-                user.getId(),
-                user.getUsername(),
-                user.getChats_id()
-        );
-
-        userRepository.delete(user);
-        return ResponseEntity.ok(user);
-    }
-
-
 }

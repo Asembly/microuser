@@ -18,19 +18,22 @@ public class ConsumerChat {
 
     @KafkaHandler
     public void handler(ChatEvent data){
-       var users = userRepository.findAllById(data.users_id());
+        var users = userRepository.findAllById(data.users_id());
+
        switch(data.type()){
            case CHAT_CREATED -> users.forEach(user -> {
                user.getChats_id().add(data.chat_id());
            });
-           case CHAT_UPDATED -> {
+           case CHAT_DELETED, CHAT_KICK_USER -> {
+               users.forEach(user -> {
+                   user.getChats_id().remove(data.chat_id());
+               });
+           }
+           case CHAT_ADD_USER -> {
                users.forEach(user -> {
                    user.getChats_id().add(data.chat_id());
                });
            }
-           case CHAT_DELETED -> users.forEach(user -> {
-               user.getChats_id().remove(data.chat_id());
-           });
        }
        userRepository.saveAll(users);
     }

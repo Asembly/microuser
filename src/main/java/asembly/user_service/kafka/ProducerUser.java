@@ -16,15 +16,15 @@ public class ProducerUser {
     @Autowired
     private KafkaTemplate<String, Object> kafkaTemplate;
 
-    public void sendEvent(UserEventType type, String user_id, String username, List<String> chats_id)
+    public void sendEvent(UserEventType type, String user_id, List<String> chats_id)
     {
         UserEvent event = new UserEvent(
-                user_id,
                 type,
-                username,
+                user_id,
                 chats_id
         );
 
         kafkaTemplate.send("user-events",user_id,event);
+        log.info("User message send: {}\nType: {}", event, event.type());
     }
 }

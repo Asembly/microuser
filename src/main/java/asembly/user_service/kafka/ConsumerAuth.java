@@ -5,8 +5,9 @@ import asembly.dto.auth.AuthResult;
 import asembly.dto.auth.AuthStatus;
 import asembly.dto.auth.ValidResponse;
 import asembly.dto.user.UserCreateRequest;
+import asembly.user_service.entity.User;
 import asembly.user_service.repository.UserRepository;
-import asembly.user_service.service.UserService;
+import asembly.user_service.service.BaseService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -20,7 +21,7 @@ import org.springframework.stereotype.Service;
 public class ConsumerAuth {
 
     @Autowired
-    private UserService userService;
+    private BaseService service;
 
     @Autowired
     private UserRepository userRepository;
@@ -39,6 +40,7 @@ public class ConsumerAuth {
     public void handlerSignIn(AuthRequest data){
         try {
             var optUser = userRepository.findByUsername(data.username());
+            User user = new User();
 
             AuthStatus status;
 
@@ -48,9 +50,8 @@ public class ConsumerAuth {
                 status = AuthStatus.INVALID_CREDENTIALS;
             } else {
                 status = AuthStatus.VALID;
+                user = optUser.get();
             }
-
-            var user = optUser.get();
 
             kafkaTemplate.send("auth-responses", new ValidResponse(
                     data.correlationId(),
@@ -82,17 +83,14 @@ public class ConsumerAuth {
                 status = AuthStatus.USER_ALREADY_EXIST;
             } else {
                 status = AuthStatus.VALID;
+                String encoded_pass = passwordEncoder.encode(data.password());
+                service.create(new UserCreateRequest(data.username(), encoded_pass));
             }
-
-            String encoded_pass = passwordEncoder.encode(data.password());
-
-            var user = userService.create(new UserCreateRequest(data.username(), encoded_pass));
-            log.info(user.getId());
 
             ValidResponse response = new ValidResponse(data.correlationId(), new AuthResult(
                     status,
-                    user.getId(),
-                    user.getUsername())
+                    null,
+                    null)
             );
 
             kafkaTemplate.send("auth-responses", response);
